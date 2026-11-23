@@ -124,7 +124,8 @@ pub fn run_transaction<T: ToString>(
         for pkg in cache.get_changes(false) {
             let pkgname = pkg.name().to_string();
 
-            if pkg.marked_new_install() && direct_deps.contains(&pkgname) {
+            // Include upgrades and downgrades, not just new installs, so every unsatisfied dep is listed.
+            if pkg.marked_install() && direct_deps.contains(&pkgname) {
                 msg = msg.error2(pkgname);
             }
         }

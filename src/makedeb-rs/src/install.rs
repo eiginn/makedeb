@@ -117,14 +117,13 @@ pub(crate) fn install(
             let new_ver = new_pkg.get_version(&version).unwrap();
             new_ver.set_candidate();
 
-            if pkg.marked_new_install() {
+            // `marked_install()` covers new installs, upgrades, and downgrades. The candidate
+            // was set to the resolved version above, so marking the package for installation
+            // reproduces whichever of those the resolver chose.
+            if pkg.marked_install() {
                 new_pkg.mark_install(false, false);
             } else if pkg.marked_delete() {
                 new_pkg.mark_delete(false);
-            } else if pkg.marked_upgrade() {
-                new_pkg.marked_upgrade();
-            } else if pkg.marked_downgrade() {
-                new_pkg.marked_downgrade();
             } else {
                 unreachable!();
             }
