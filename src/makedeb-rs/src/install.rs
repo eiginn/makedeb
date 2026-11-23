@@ -67,7 +67,7 @@ pub(crate) fn install(
         debs.push(deb);
     }
 
-    let mut apt_cache = Cache::debs(&debs).unwrap_or_else(|err| {
+    let mut apt_cache = Cache::new(&debs).unwrap_or_else(|err| {
         util::handle_errors(err);
         Message::new()
             .error("Unable to open cache in dependency resolver")
@@ -97,11 +97,17 @@ pub(crate) fn install(
     // If we aren't installing the '.deb' packages themselves, then make them not marked for installation.
     // Currently we have to do this by rebuilding the cache and mirroring the changes into the new cache.
     if deps_only {
-        let new_cache = Cache::new();
+        let new_cache = Cache::new::<&str>(&[]).unwrap_or_else(|err| {
+            util::handle_errors(err);
+            Message::new()
+                .error("Unable to open cache in dependency resolver")
+                .send();
+            quit::with_code(exitcode::UNAVAILABLE);
+        });
 
         for pkg in apt_cache.get_changes(false) {
             let pkgname = pkg.fullname(false);
-            let version = pkg.candidate().unwrap().version();
+            let version = pkg.candidate().unwrap().version().to_string();
 
             if pkgnames.contains(&pkgname) {
                 continue;
@@ -111,7 +117,7 @@ pub(crate) fn install(
             let new_ver = new_pkg.get_version(&version).unwrap();
             new_ver.set_candidate();
 
-            if pkg.marked_install() {
+            if pkg.marked_new_install() {
                 new_pkg.mark_install(false, false);
             } else if pkg.marked_delete() {
                 new_pkg.mark_delete(false);
@@ -131,7 +137,7 @@ pub(crate) fn install(
 
     util::unlock_cache();
     cache::run_transaction(
-        &apt_cache,
+        apt_cache,
         &debs,
         fail_on_change,
         allow_downgrades,

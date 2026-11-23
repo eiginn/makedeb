@@ -41,13 +41,7 @@ build:
         *)     echo "Error: invalid architecture '${DPKG_ARCHITECTURE}'."; exit 1 ;;
     esac
 
-    extra_cargo_args=()
-
-    if [[ "${RUST_APT_WORKER_SIZES:+x}" == 'x' ]]; then
-        extra_cargo_args+=('--features' 'rust-apt/worker_sizes')
-    fi
-	
-    cargo build --target "${target}" --release "${extra_cargo_args[@]}"
+    cargo build --target "${target}" --release
     install -Dm 755 "target/${target}/release/makedeb-rs" target/release/makedeb-rs
 
 package:

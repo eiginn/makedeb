@@ -2,7 +2,7 @@ use crate::{message::Message, util};
 use colored::Colorize;
 use rust_apt::{
     cache::{Cache, PackageSort},
-    progress::{AptAcquireProgress, AptInstallProgress},
+    progress::{AcquireProgress, InstallProgress},
 };
 use std::{io, process::Command};
 /// Run a transaction.
@@ -13,7 +13,7 @@ use std::{io, process::Command};
 /// `allow_downgrades`: Whether or not to allow downgrading of packages.
 /// `no_confirm`: Whether or not to prompt the user before running the transaction.
 pub fn run_transaction<T: ToString>(
-    cache: &Cache,
+    cache: Cache,
     debs: &[T],
     fail_on_change: bool,
     allow_downgrades: bool,
@@ -30,7 +30,7 @@ pub fn run_transaction<T: ToString>(
 
     for pkg in cache.packages(&PackageSort::default()) {
         let pkgname = pkg.fullname(true);
-        if pkg.marked_install() {
+        if pkg.marked_new_install() {
             to_install.push(pkgname);
         } else if pkg.marked_delete() {
             to_remove.push(pkgname);
@@ -62,7 +62,7 @@ pub fn run_transaction<T: ToString>(
         let mut msg = Message::new().error("The following dependencies aren't installed, but are required in order to build the package:");
 
         // Reopen the deb cache if it's been closed by the `if deps_only` block above.
-        let deb_cache = Cache::debs(&debs).unwrap();
+        let deb_cache = Cache::new(&debs).unwrap();
 
         // Get the list of direct dependencies of the `.deb` packages.
         let mut direct_deps = vec![];
@@ -113,7 +113,6 @@ pub fn run_transaction<T: ToString>(
                 for dep in apt_deps {
                     direct_deps.append(
                         &mut dep
-                            .base_deps
                             .iter()
                             .map(|dep| dep.name().to_string())
                             .collect::<Vec<String>>(),
@@ -123,9 +122,9 @@ pub fn run_transaction<T: ToString>(
         }
 
         for pkg in cache.get_changes(false) {
-            let pkgname = pkg.name();
+            let pkgname = pkg.name().to_string();
 
-            if pkg.marked_install() && direct_deps.contains(&pkgname) {
+            if pkg.marked_new_install() && direct_deps.contains(&pkgname) {
                 msg = msg.error2(pkgname);
             }
         }
@@ -189,16 +188,16 @@ pub fn run_transaction<T: ToString>(
         }
     };
 
-    let mut acquire_progress = AptAcquireProgress::new_box();
+    let mut acquire_progress = AcquireProgress::apt();
     if let Err(err) = cache.get_archives(&mut acquire_progress) {
-        util::handle_errors(err);
+        util::handle_errors(err.into());
         Message::new()
             .error("Failed to fetch needed archives.")
             .send();
         quit::with_code(exitcode::UNAVAILABLE);
     }
 
-    let mut install_progress = AptInstallProgress::new_box();
+    let mut install_progress = InstallProgress::apt();
     if let Err(err) = cache.do_install(&mut install_progress) {
         util::handle_errors(err);
         Message::new().error("Failed to run transaction.").send();
